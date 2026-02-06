@@ -1,7 +1,4 @@
 {
   "name": "PDF Hangfelolvasó AI",
-  "description": "Egy intelligens alkalmazás, amely PDF dokumentumokat elemez és kiváló minőségű hanggá alakítja azokat a Gemini AI segítségével.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
+  "description": "Egy intelligens alkalmazás, amely PDF dokumentumokat elemez helyi Ollama AI segítségével, és Piper TTS-sel alakítja azokat hanggá."
 }

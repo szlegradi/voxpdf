@@ -1,10 +1,8 @@
 
 export enum VoiceName {
-  Kore = 'Kore',
-  Puck = 'Puck',
-  Charon = 'Charon',
-  Fenrir = 'Fenrir',
-  Zephyr = 'Zephyr'
+  Anna = 'hu_HU-anna-medium',
+  Berta = 'hu_HU-berta-medium',
+  Imre = 'hu_HU-imre-medium',
 }
 
 export interface ProcessingState {

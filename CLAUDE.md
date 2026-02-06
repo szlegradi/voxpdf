@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PDF Hangfelolvasó AI — a Hungarian-language web app that extracts text from PDF documents page-by-page using Gemini AI, then converts the extracted text to speech. Users can also download the extracted text as a Word (.doc) file. Originally created via Google AI Studio.
+PDF Hangfelolvasó AI — a Hungarian-language web app that extracts text from PDF documents page-by-page using a local Ollama vision model (`llama3.2-vision`), then converts the extracted text to speech via Piper TTS. Users can also download the extracted text as a Word (.doc) file. Fully offline — no cloud API keys needed.
 
 ## Commands
 
@@ -17,7 +17,12 @@ No test framework or linter is configured.
 
 ## Environment
 
-Set `GEMINI_API_KEY` in `.env.local`. Vite config injects it as `process.env.API_KEY` at build time via `define`.
+Set `OLLAMA_BASE_URL` and `PIPER_BASE_URL` in `.env.local` (defaults: `http://localhost:11434` and `http://localhost:5000`). Vite config injects them as `process.env.OLLAMA_BASE_URL` and `process.env.PIPER_BASE_URL` at build time via `define`.
+
+### Required local services
+
+1. **Ollama** — `OLLAMA_ORIGINS="*" ollama serve` (must have `llama3.2-vision` model pulled)
+2. **Piper TTS server** — `python scripts/piper_server.py` (Flask wrapper around `piper` CLI)
 
 ## Architecture
 
@@ -26,24 +31,25 @@ Single-page React 19 app built with Vite and TypeScript. No routing, no state ma
 ### Key files
 
 - **`App.tsx`** — the entire UI and all application logic in one component. Manages a state machine via `ProcessingState.status`: `idle` → `extracting` → `ready_to_speech` → `generating_audio` (and `error`).
-- **`services/geminiService.ts`** — `GeminiService` class wrapping `@google/genai`. Two main methods:
-  - `extractSinglePage(base64Pdf, pageNum)` — sends the full PDF as base64 inline data to `gemini-3-pro-preview`, asking it to extract text from a specific page number.
-  - `textToSpeech(text, voice, onProgress)` — chunks text (~1500 chars per chunk at sentence boundaries), sends each chunk to `gemini-2.5-flash-preview-tts` for audio generation, then concatenates the raw PCM buffers.
-- **`utils/audioUtils.ts`** — base64 encode/decode, PCM Int16 → AudioBuffer conversion, and AudioBuffer → WAV blob conversion (manual WAV header construction).
-- **`types.ts`** — `VoiceName` enum (Kore, Puck, Charon, Fenrir, Zephyr), `ProcessingState` interface, `AudioResult` interface.
+- **`services/localService.ts`** — `LocalService` class with three main methods:
+  - `renderPageToImage(pdfData, pageNum)` — renders a single PDF page to a base64 PNG via pdf.js offscreen canvas at 2x scale.
+  - `extractSinglePage(pdfArrayBuffer, pageNum)` — renders the page to PNG, then POSTs to Ollama's `/api/generate` with `llama3.2-vision` model and the image for OCR.
+  - `textToSpeech(text, voice, onProgress)` — chunks text (~1500 chars per chunk at sentence boundaries), sends each chunk to Piper TTS server, then concatenates WAV buffers.
+- **`scripts/piper_server.py`** — minimal Flask server wrapping Piper CLI. `POST /api/tts` accepts `{ text, voice }` and returns WAV audio.
+- **`types.ts`** — `VoiceName` enum (Anna, Berta, Imre — Hungarian Piper voices), `ProcessingState` interface, `AudioResult` interface.
 
 ### External dependencies loaded via CDN (in `index.html`)
 
 - **Tailwind CSS** — loaded via `cdn.tailwindcss.com` script tag (not installed as a package)
-- **pdf.js 3.11.174** — loaded via cdnjs; used as global `pdfjsLib` (declared as `any` in App.tsx)
+- **pdf.js 3.11.174** — loaded via cdnjs; used as global `pdfjsLib` (declared as `any` in App.tsx and localService.ts)
 
 ### Data flow
 
-1. User uploads PDF → read as ArrayBuffer → converted to base64 + parsed by pdf.js for page count
-2. User selects page range → each page extracted sequentially via Gemini API (one API call per page)
+1. User uploads PDF → read as ArrayBuffer → parsed by pdf.js for page count
+2. User selects page range → each page rendered to PNG via pdf.js → sent to Ollama vision model for OCR (one API call per page)
 3. Extracted text displayed → user can generate audio (TTS) or download as Word
-4. TTS: text split into ~1500-char chunks → each chunk sent to Gemini TTS → raw PCM concatenated → decoded to AudioBuffer → encoded as WAV blob
+4. TTS: text split into ~1500-char chunks → each chunk sent to Piper TTS server → WAV responses concatenated → played/downloaded directly
 
 ## Language
 
-The UI is entirely in Hungarian. All user-facing strings, Gemini prompts, and error messages are in Hungarian.
+The UI is entirely in Hungarian. All user-facing strings, Ollama prompts, and error messages are in Hungarian.

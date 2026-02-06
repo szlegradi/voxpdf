@@ -1,31 +1,29 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { geminiService } from './services/geminiService';
+import React, { useState, useRef } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
+import { localService } from './services/localService';
 import { VoiceName, ProcessingState, AudioResult } from './types';
-import { decode, decodeAudioData, audioBufferToWav } from './utils/audioUtils';
 
-declare const pdfjsLib: any;
+const APP_VERSION = "v2.0.0";
 
-const APP_VERSION = "v1.12.1";
+const voiceDisplayNames: Record<VoiceName, string> = {
+  [VoiceName.Anna]: 'Anna (női)',
+  [VoiceName.Berta]: 'Berta (női)',
+  [VoiceName.Imre]: 'Imre (férfi)',
+};
 
 const App: React.FC = () => {
-  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+  const [pdfArrayBuffer, setPdfArrayBuffer] = useState<ArrayBuffer | null>(null);
   const [pdfFileName, setPdfFileName] = useState<string>('dokumentum');
   const [pageCount, setPageCount] = useState<number>(0);
   const [startPage, setStartPage] = useState<number>(1);
   const [endPage, setEndPage] = useState<number>(1);
   const [extractedText, setExtractedText] = useState<string>('');
-  const [selectedVoice, setSelectedVoice] = useState<VoiceName>(VoiceName.Zephyr);
+  const [selectedVoice, setSelectedVoice] = useState<VoiceName>(VoiceName.Anna);
   const [processing, setProcessing] = useState<ProcessingState>({ status: 'idle', message: '' });
   const [audioResult, setAudioResult] = useState<AudioResult | null>(null);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (typeof pdfjsLib !== 'undefined') {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
-  }, []);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -44,13 +42,10 @@ const App: React.FC = () => {
       const reader = new FileReader();
       reader.onload = async () => {
         const arrayBuffer = reader.result as ArrayBuffer;
-        const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-        );
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
         const count = pdf.numPages;
         setPageCount(count);
-        setPdfBase64(base64);
+        setPdfArrayBuffer(arrayBuffer);
         setStartPage(1);
         setEndPage(Math.min(count, 5));
         setProcessing({ status: 'ready_to_speech', message: 'Válaszd ki az oldalakat a szekvenciális feldolgozáshoz.' });
@@ -62,7 +57,7 @@ const App: React.FC = () => {
   };
 
   const handleExtractRange = async () => {
-    if (!pdfBase64) return;
+    if (!pdfArrayBuffer) return;
     if (startPage > endPage) {
       setProcessing({ status: 'error', message: 'Hibás oldaltartomány!' });
       return;
@@ -74,11 +69,11 @@ const App: React.FC = () => {
 
     try {
       for (let p = startPage; p <= endPage; p++) {
-        setProcessing({ 
-          status: 'extracting', 
-          message: `Oldal elemzése (${p - startPage + 1} / ${totalToProcess})...` 
+        setProcessing({
+          status: 'extracting',
+          message: `Oldal elemzése (${p - startPage + 1} / ${totalToProcess})...`
         });
-        const pageText = await geminiService.extractSinglePage(pdfBase64, p);
+        const pageText = await localService.extractSinglePage(pdfArrayBuffer, p);
         fullText += (pageText + "\n\n");
       }
       setExtractedText(fullText.trim());
@@ -93,16 +88,11 @@ const App: React.FC = () => {
     setProcessing({ status: 'generating_audio', message: 'Hang generálása darabolással...' });
 
     try {
-      const base64Audio = await geminiService.textToSpeech(extractedText, selectedVoice, (current, total) => {
+      const wavBlob = await localService.textToSpeech(extractedText, selectedVoice, (current, total) => {
         setProcessing(prev => ({ ...prev, message: `Hang generálása: ${current} / ${total} részlet kész.` }));
       });
-      
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      const decodedData = decode(base64Audio);
-      const audioBuffer = await decodeAudioData(decodedData, audioContext, 24000, 1);
-      const wavBlob = audioBufferToWav(audioBuffer);
+
       const url = URL.createObjectURL(wavBlob);
-      
       setAudioResult({ url, blob: wavBlob });
       setProcessing({ status: 'ready_to_speech', message: 'A teljes hanganyag elkészült!' });
     } catch (error) {
@@ -162,12 +152,12 @@ const App: React.FC = () => {
             <p className="text-red-700 font-medium text-center">{processing.message}</p>
             <div className="flex justify-center space-x-4 mt-4">
               <button onClick={() => setProcessing({ ...processing, status: 'ready_to_speech' })} className="text-blue-600 font-bold underline">Vissza</button>
-              <button onClick={() => { setPdfBase64(null); setProcessing({ status: 'idle', message: '' }); }} className="text-slate-500 font-bold underline">Új fájl</button>
+              <button onClick={() => { setPdfArrayBuffer(null); setProcessing({ status: 'idle', message: '' }); }} className="text-slate-500 font-bold underline">Új fájl</button>
             </div>
           </div>
         )}
 
-        {processing.status === 'ready_to_speech' && pdfBase64 && (
+        {processing.status === 'ready_to_speech' && pdfArrayBuffer && (
           <div className="space-y-6">
             {!extractedText && (
               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
@@ -194,7 +184,7 @@ const App: React.FC = () => {
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value as VoiceName)} className="bg-white border p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
-                        {Object.values(VoiceName).map(v => <option key={v} value={v}>{v}</option>)}
+                        {Object.values(VoiceName).map(v => <option key={v} value={v}>{voiceDisplayNames[v]}</option>)}
                       </select>
                       <button onClick={generateAudio} className="bg-green-600 hover:bg-green-700 text-white font-bold p-3 rounded-xl transition-all shadow-lg flex items-center justify-center space-x-2">
                         <span>Szöveg felolvasása</span>
@@ -230,8 +220,8 @@ const App: React.FC = () => {
       </main>
 
       <footer className="mt-auto py-8 text-slate-400 text-sm text-center">
-        <p className="font-medium">© 2025 Gemini PDF Suite • {APP_VERSION}</p>
-        <p className="mt-1">Szekvenciális feldolgozás: megbízhatóbb nagy fájlok esetén.</p>
+        <p className="font-medium">© 2025 PDF Hangfelolvasó • {APP_VERSION}</p>
+        <p className="mt-1">Helyi feldolgozás Ollama + Piper TTS segítségével.</p>
       </footer>
     </div>
   );

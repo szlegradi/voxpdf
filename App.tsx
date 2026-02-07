@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [selectedVoice, setSelectedVoice] = useState<VoiceName>(VoiceName.Anna);
   const [processing, setProcessing] = useState<ProcessingState>({ status: 'idle', message: '' });
   const [audioResult, setAudioResult] = useState<AudioResult | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -67,19 +68,46 @@ const App: React.FC = () => {
     let fullText = "";
     const totalToProcess = endPage - startPage + 1;
 
+    // Create new AbortController for this extraction
+    abortControllerRef.current = new AbortController();
+
     try {
       for (let p = startPage; p <= endPage; p++) {
+        // Check if extraction was stopped
+        if (abortControllerRef.current.signal.aborted) {
+          setProcessing({ status: 'ready_to_speech', message: 'Kinyerés megszakítva.' });
+          if (fullText.trim()) {
+            setExtractedText(fullText.trim());
+          }
+          return;
+        }
+
         setProcessing({
           status: 'extracting',
           message: `Oldal elemzése (${p - startPage + 1} / ${totalToProcess})...`
         });
-        const pageText = await localService.extractSinglePage(pdfArrayBuffer, p);
+        const pageText = await localService.extractSinglePage(pdfArrayBuffer, p, abortControllerRef.current.signal);
         fullText += (pageText + "\n\n");
       }
       setExtractedText(fullText.trim());
       setProcessing({ status: 'ready_to_speech', message: 'Az összes oldal elemzése sikeresen befejeződött.' });
-    } catch (error) {
-      setProcessing({ status: 'error', message: 'Hiba történt az oldalankénti feldolgozás során.' });
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        setProcessing({ status: 'ready_to_speech', message: 'Kinyerés megszakítva.' });
+        if (fullText.trim()) {
+          setExtractedText(fullText.trim());
+        }
+      } else {
+        setProcessing({ status: 'error', message: 'Hiba történt az oldalankénti feldolgozás során.' });
+      }
+    } finally {
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleStopExtraction = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   };
 
@@ -144,6 +172,14 @@ const App: React.FC = () => {
             </div>
             <p className="text-lg font-medium text-slate-700 animate-pulse px-4">{processing.message}</p>
             <p className="text-sm text-slate-400 mt-2">Oldalankénti feldolgozás folyamatban...</p>
+            {processing.status === 'extracting' && (
+              <button 
+                onClick={handleStopExtraction}
+                className="mt-6 px-6 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-all shadow-lg"
+              >
+                Kinyerés leállítása
+              </button>
+            )}
           </div>
         )}
 

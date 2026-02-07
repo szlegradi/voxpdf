@@ -36,26 +36,19 @@ export class LocalService {
    * Extracts text from a specific PDF page using Ollama vision model.
    * The PDF page is first rendered to PNG, then sent to llama3.2-vision.
    */
-  async extractSinglePage(pdfArrayBuffer: ArrayBuffer, pageNum: number): Promise<string> {
+  async extractSinglePage(pdfArrayBuffer: ArrayBuffer, pageNum: number, signal?: AbortSignal): Promise<string> {
     const base64Png = await this.renderPageToImage(pdfArrayBuffer, pageNum);
 
     const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'llama3.2-vision',
-        prompt: `Kérlek, másold ki a képen látható szöveget pontosan, szóról szóra.
-
-KÜLÖNLEGES UTASÍTÁSOK HASÁBOS/MAGAZIN ELRENDEZÉSHEZ:
-- A szöveget HASÁBRÓL HASÁBRA haladva (függőlegesen) másold ki.
-- A képaláírásokat és a hirdetések szövegeit is tartsd meg, de különítsd el őket üres sorokkal.
-
-SZABÁLYOK:
-1. NE fogalmazd át! NE készíts összefoglalót!
-2. Csak a képen található eredeti szöveget add vissza bevezető nélkül.`,
+        model: 'glm-ocr',
+        prompt: 'Extract all text from this image exactly as it appears.',
         images: [base64Png],
         stream: false,
       }),
+      signal,
     });
 
     if (!response.ok) {

@@ -5,7 +5,7 @@ Magyar nyelvű webalkalmazás, amely PDF dokumentumokból oldalanként szöveget
 ## Funkciók
 
 - PDF feltöltése és oldalak kiválasztása
-- Szöveg kinyerése oldalanként AI-val (Ollama + llama3.2-vision)
+- Szöveg kinyerése oldalanként AI-val (Ollama + glm-ocr)
 - Szöveg felolvasása magyar hangokkal (Piper TTS — Anna, Berta, Imre)
 - Kinyert szöveg letöltése Word (.doc) fájlként
 - Hanganyag letöltése WAV fájlként
@@ -51,9 +51,9 @@ Az Ollama futtatja a mesterséges intelligenciát a gépeden, amely kiolvassa a 
 2. Kattints a **Download for Windows** gombra
 3. Futtasd a letöltött telepítőt és kövesd az utasításokat
 4. Telepítés után nyiss egy **Parancssort** (Start menü → keress rá: `cmd` → Enter)
-5. Írd be az alábbi parancsot és nyomj Entert (ez letölti az AI modellt, ~2 GB):
+5. Írd be az alábbi parancsot és nyomj Entert (ez letölti az OCR modellt, ~9 GB):
    ```
-   ollama pull llama3.2-vision
+   ollama pull glm-ocr
    ```
 6. Várd meg, amíg a letöltés befejeződik
 
@@ -61,7 +61,7 @@ Az Ollama futtatja a mesterséges intelligenciát a gépeden, amely kiolvassa a 
 
 ```bash
 brew install ollama
-ollama pull llama3.2-vision
+ollama pull glm-ocr
 ```
 
 ---

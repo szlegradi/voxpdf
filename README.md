@@ -78,17 +78,67 @@ A Piper TTS végzi a szöveg felolvasását magyar hangokkal. Egy kis Python sze
 4. Kattints az **Install Now** gombra és várd meg, amíg befejeződik
 5. Nyiss egy **új** Parancssort (Start menü → `cmd` → Enter) és írd be:
    ```
-   pip install piper-tts flask flask-cors
+   pip install piper-tts flask flask-cors pathvalidate
    ```
 6. Nyomj Entert és várd meg, amíg minden települ
+
+**Magyar hangmodellek letöltése (Windows PowerShell):**
+
+Nyiss egy PowerShell ablakot (Start menü → `powershell` → Enter) és futtasd:
+
+```powershell
+# Anna hang
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.local\share\piper\hu_HU-anna-medium"
+cd "$env:USERPROFILE\.local\share\piper\hu_HU-anna-medium"
+Invoke-WebRequest -Uri "https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/anna/medium/hu_HU-anna-medium.onnx" -OutFile "hu_HU-anna-medium.onnx"
+Invoke-WebRequest -Uri "https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/anna/medium/hu_HU-anna-medium.onnx.json" -OutFile "hu_HU-anna-medium.onnx.json"
+
+# Berta hang
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.local\share\piper\hu_HU-berta-medium"
+cd "$env:USERPROFILE\.local\share\piper\hu_HU-berta-medium"
+Invoke-WebRequest -Uri "https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/berta/medium/hu_HU-berta-medium.onnx" -OutFile "hu_HU-berta-medium.onnx"
+Invoke-WebRequest -Uri "https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/berta/medium/hu_HU-berta-medium.onnx.json" -OutFile "hu_HU-berta-medium.onnx.json"
+
+# Imre hang
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.local\share\piper\hu_HU-imre-medium"
+cd "$env:USERPROFILE\.local\share\piper\hu_HU-imre-medium"
+Invoke-WebRequest -Uri "https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/imre/medium/hu_HU-imre-medium.onnx" -OutFile "hu_HU-imre-medium.onnx"
+Invoke-WebRequest -Uri "https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/imre/medium/hu_HU-imre-medium.onnx.json" -OutFile "hu_HU-imre-medium.onnx.json"
+```
+
+> Minden hangmodell körülbelül 60 MB, összesen ~180 MB letöltés.
 
 #### macOS
 
 ```bash
-pip install piper-tts flask flask-cors
+pip install piper-tts flask flask-cors pathvalidate
 ```
 
-> A magyar hangok (`hu_HU-anna-medium`, `hu_HU-berta-medium`, `hu_HU-imre-medium`) automatikusan letöltődnek az első használatkor.
+**Magyar hangmodellek letöltése:**
+
+A Piper TTS-hez szükséges magyar hangmodelleket kézzel kell letölteni:
+
+```bash
+# Anna hang
+mkdir -p ~/.local/share/piper/hu_HU-anna-medium
+cd ~/.local/share/piper/hu_HU-anna-medium
+curl -L -O https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/anna/medium/hu_HU-anna-medium.onnx
+curl -L -O https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/anna/medium/hu_HU-anna-medium.onnx.json
+
+# Berta hang
+mkdir -p ~/.local/share/piper/hu_HU-berta-medium
+cd ~/.local/share/piper/hu_HU-berta-medium
+curl -L -O https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/berta/medium/hu_HU-berta-medium.onnx
+curl -L -O https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/berta/medium/hu_HU-berta-medium.onnx.json
+
+# Imre hang
+mkdir -p ~/.local/share/piper/hu_HU-imre-medium
+cd ~/.local/share/piper/hu_HU-imre-medium
+curl -L -O https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/imre/medium/hu_HU-imre-medium.onnx
+curl -L -O https://huggingface.co/rhasspy/piper-voices/resolve/main/hu/hu_HU/imre/medium/hu_HU-imre-medium.onnx.json
+```
+
+> Minden hangmodell körülbelül 60 MB, összesen ~180 MB letöltés.
 
 ---
 
@@ -165,8 +215,10 @@ A szolgáltatások URL-jeit a `.env.local` fájlban lehet módosítani (alapért
 
 ```
 OLLAMA_BASE_URL=http://localhost:11434
-PIPER_BASE_URL=http://localhost:5000
+PIPER_BASE_URL=http://localhost:5001
 ```
+
+> **Megjegyzés:** A Piper szerver alapértelmezetten az 5001-es portot használja, mert macOS-en az 5000-es portot az AirPlay Receiver foglalja. Ha Windows-on az 5000-es port szabad, módosíthatod a `scripts/piper_server.py` fájl utolsó sorában a portot 5000-re.
 
 ---
 
@@ -176,6 +228,10 @@ PIPER_BASE_URL=http://localhost:5000
 |----------|---------|
 | "Hiba történt az oldalankénti feldolgozás során" | Ellenőrizd, hogy az Ollama fut-e (`ollama serve`). Próbáld meg: `curl http://localhost:11434/api/tags` |
 | "Hiba történt a hanggenerálás során" | Ellenőrizd, hogy a Piper szerver fut-e (`python scripts/piper_server.py`) |
+| `ModuleNotFoundError: No module named 'pathvalidate'` | Telepítsd: `pip install pathvalidate` |
+| `ValueError: Unable to find voice: hu_HU-anna-medium` | A hangmodellek nincsenek letöltve. Kövesd a fenti "Magyar hangmodellek letöltése" részt. |
+| `listen tcp 127.0.0.1:11434: bind: address already in use` | Az Ollama már fut. Nem kell újra indítani, használd a futó példányt. |
+| `Port 5000 is in use` (macOS) | Az AirPlay Receiver használja. Kapcsold ki a Rendszerbeállításokban (Általános → AirDrop és Handoff → AirPlay vevő), vagy használd az 5001-es portot (alapértelmezett). |
 | `ollama: command not found` | Az Ollama nincs telepítve vagy nincs a PATH-ban. Telepítsd újra. |
 | `python: command not found` (Windows) | A Python telepítésnél nem volt bepipálva az "Add to PATH". Telepítsd újra és pipáld be. |
 | `pip: command not found` | Próbáld `pip3` paranccsal, vagy telepítsd újra a Pythont PATH opcióval. |

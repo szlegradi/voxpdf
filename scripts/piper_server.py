@@ -13,19 +13,25 @@ Hungarian voices (auto-downloaded on first use):
 """
 
 import io
+import os
 import subprocess
 import tempfile
+from pathlib import Path
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:3000"])
 
-VALID_VOICES = {
-    "hu_HU-anna-medium",
-    "hu_HU-berta-medium",
-    "hu_HU-imre-medium",
+# Map voice names to model file paths
+PIPER_DATA_DIR = Path.home() / ".local" / "share" / "piper"
+VOICE_MODELS = {
+    "hu_HU-anna-medium": PIPER_DATA_DIR / "hu_HU-anna-medium" / "hu_HU-anna-medium.onnx",
+    "hu_HU-berta-medium": PIPER_DATA_DIR / "hu_HU-berta-medium" / "hu_HU-berta-medium.onnx",
+    "hu_HU-imre-medium": PIPER_DATA_DIR / "hu_HU-imre-medium" / "hu_HU-imre-medium.onnx",
 }
+
+VALID_VOICES = set(VOICE_MODELS.keys())
 
 
 @app.route("/api/tts", methods=["POST"])
@@ -42,12 +48,16 @@ def tts():
     if voice not in VALID_VOICES:
         return jsonify({"error": f"Invalid voice: {voice}"}), 400
 
+    model_path = VOICE_MODELS[voice]
+    if not model_path.exists():
+        return jsonify({"error": f"Voice model not found: {model_path}"}), 500
+
     try:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp_path = tmp.name
 
         result = subprocess.run(
-            ["piper", "--model", voice, "--output_file", tmp_path],
+            ["piper", "--model", str(model_path), "--output_file", tmp_path],
             input=text,
             capture_output=True,
             text=True,
@@ -79,6 +89,6 @@ def health():
 
 
 if __name__ == "__main__":
-    print("Piper TTS server starting on http://localhost:5000")
+    print("Piper TTS server starting on http://localhost:5001")
     print("Available voices:", ", ".join(sorted(VALID_VOICES)))
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5001, debug=False)

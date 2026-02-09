@@ -1,6 +1,10 @@
-# PDF Hangfelolvasó AI
-
-Magyar nyelvű webalkalmazás, amely PDF dokumentumokból oldalanként szöveget nyer ki Gemini vision modellekkel, majd felolvassa a szöveget Gemini TTS-sel.
+<div align="center">
+  <img src="public/logo.png" alt="VoxPDF Logo" width="400">
+  
+  <h1>VoxPDF</h1>
+  
+  <p>Magyar nyelvű webalkalmazás, amely PDF dokumentumokból oldalanként szöveget nyer ki Gemini vision modellekkel, majd felolvassa a szöveget Gemini TTS-sel.</p>
+</div>
 
 ## Funkciók
 

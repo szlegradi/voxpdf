@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PDF Hangfelolvasó AI — a Hungarian-language web app that extracts text from PDF documents page-by-page using Gemini vision models, then converts the extracted text to speech via Gemini TTS. Users can also download the extracted text as a Word (.doc) file. Powered entirely by Google's Gemini API.
+VoxPDF — a Hungarian-language web app that extracts text from PDF documents page-by-page using Gemini vision models, then converts the extracted text to speech via Gemini TTS. Users can also download the extracted text as a Word (.doc) file. Powered entirely by Google's Gemini API.
 
 ## Commands
 

@@ -216,9 +216,9 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col items-center p-4 md:p-8">
       <header className="w-full max-w-4xl text-center mb-8 mt-4">
-        <h1 className="text-4xl font-extrabold text-slate-800 mb-2 tracking-tight">
-          PDF <span className="text-blue-600">Hangfelolvasó</span> AI
-        </h1>
+        <div className="flex items-center justify-center mb-4">
+          <img src="/logo.png" alt="VoxPDF Logo" className="h-16 md:h-40" />
+        </div>
         <p className="text-slate-600 text-lg">
           Hosszú dokumentumok oldalankénti, precíz feldolgozása Gemini-vel.
         </p>
@@ -482,7 +482,7 @@ const App: React.FC = () => {
       </main>
 
       <footer className="mt-auto py-8 text-slate-400 text-sm text-center">
-        <p className="font-medium">© 2025 PDF Hangfelolvasó • {APP_VERSION}</p>
+        <p className="font-medium">© 2025 VoxPDF • {APP_VERSION}</p>
         <p className="mt-1">Powered by Gemini API</p>
       </footer>
     </div>

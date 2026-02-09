@@ -1,14 +1,21 @@
 
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { VoiceName } from "../types";
+import { GoogleGenAI, Modality } from "@google/genai";
+import { VoiceName, VisionModel } from "../types";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-const OLLAMA_BASE_URL = (typeof process !== 'undefined' && process.env?.OLLAMA_BASE_URL) || 'http://localhost:11434';
-const PIPER_BASE_URL = (typeof process !== 'undefined' && process.env?.PIPER_BASE_URL) || 'http://localhost:5000';
+const GEMINI_API_KEY = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || '';
 
 export class LocalService {
+  private geminiClient: GoogleGenAI | null = null;
+
+  constructor() {
+    if (GEMINI_API_KEY) {
+      this.geminiClient = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    }
+  }
 
   /**
    * Renders a single PDF page to a base64 PNG using pdf.js offscreen canvas.
@@ -33,31 +40,51 @@ export class LocalService {
   }
 
   /**
-   * Extracts text from a specific PDF page using Ollama vision model.
-   * The PDF page is first rendered to PNG, then sent to llama3.2-vision.
+   * Extracts text from a specific PDF page using Gemini vision model.
+   * The PDF page is first rendered to PNG, then sent to the selected vision model.
    */
-  async extractSinglePage(pdfArrayBuffer: ArrayBuffer, pageNum: number, signal?: AbortSignal): Promise<string> {
-    const base64Png = await this.renderPageToImage(pdfArrayBuffer, pageNum);
-
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'glm-ocr',
-        prompt: 'Extract all text from this image exactly as it appears.',
-        images: [base64Png],
-        stream: false,
-      }),
-      signal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Ollama hiba: ${response.status} - ${errorText}`);
+  async extractSinglePage(pdfArrayBuffer: ArrayBuffer, pageNum: number, model: VisionModel, signal?: AbortSignal): Promise<string> {
+    if (!this.geminiClient) {
+      throw new Error('Gemini API kulcs hiányzik! Állítsd be a GEMINI_API_KEY környezeti változót.');
     }
 
-    const data = await response.json();
-    return data.response || "";
+    const base64Png = await this.renderPageToImage(pdfArrayBuffer, pageNum);
+
+    const prompt = `Kérlek, másold ki a képen látható szöveget pontosan, szóról szóra.
+
+KÜLÖNLEGES UTASÍTÁSOK HASÁBOS/MAGAZIN ELRENDEZÉSHEZ:
+- A szöveget HASÁBRÓL HASÁBRA haladva (függőlegesen) másold ki.
+- A képaláírásokat és a hirdetések szövegeit is tartsd meg, de különítsd el őket üres sorokkal.
+
+SZABÁLYOK:
+1. NE fogalmazd át! NE készíts összefoglalót!
+2. Csak a képen található eredeti szöveget add vissza bevezető nélkül.`;
+
+    try {
+      const response = await this.geminiClient.models.generateContent({
+        model: model,
+        contents: [
+          {
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: 'image/png',
+                  data: base64Png,
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      return response.text || "";
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        throw error;
+      }
+      throw new Error(`Gemini hiba: ${error.message || 'Ismeretlen hiba történt'}`);
+    }
   }
 
   /**
@@ -81,76 +108,65 @@ export class LocalService {
   }
 
   /**
-   * Generates audio from text using the local Piper TTS server.
-   * Returns a WAV Blob directly.
+   * Generates audio from text using Gemini TTS API.
    */
   async textToSpeech(text: string, voice: VoiceName, onProgress?: (current: number, total: number) => void): Promise<Blob> {
+    if (!this.geminiClient) {
+      throw new Error('Gemini API kulcs hiányzik! Állítsd be a GEMINI_API_KEY környezeti változót.');
+    }
+
     const chunks = this.splitTextIntoChunks(text);
-    const wavBuffers: ArrayBuffer[] = [];
+    const audioBuffers: Uint8Array[] = [];
 
     for (let i = 0; i < chunks.length; i++) {
       if (onProgress) onProgress(i + 1, chunks.length);
 
-      const response = await fetch(`${PIPER_BASE_URL}/api/tts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: chunks[i], voice }),
-      });
+      try {
+        const response = await this.geminiClient.models.generateContent({
+          model: 'gemini-2.5-flash-preview-tts',
+          contents: chunks[i],
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: {
+                  voiceName: voice,
+                },
+              },
+            },
+          },
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Piper TTS hiba: ${response.status} - ${errorText}`);
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (base64Audio) {
+          // Convert base64 to Uint8Array
+          const binaryString = atob(base64Audio);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let j = 0; j < binaryString.length; j++) {
+            bytes[j] = binaryString.charCodeAt(j);
+          }
+          audioBuffers.push(bytes);
+        }
+      } catch (error: any) {
+        throw new Error(`Gemini TTS hiba: ${error.message || 'Ismeretlen hiba történt'}`);
       }
-
-      const buffer = await response.arrayBuffer();
-      wavBuffers.push(buffer);
     }
 
-    if (wavBuffers.length === 0) {
+    if (audioBuffers.length === 0) {
       throw new Error("A hanggenerálás nem sikerült.");
     }
 
-    // Single chunk — return as-is
-    if (wavBuffers.length === 1) {
-      return new Blob([wavBuffers[0]], { type: 'audio/wav' });
+    // Concatenate all audio buffers
+    const totalLength = audioBuffers.reduce((acc, buf) => acc + buf.length, 0);
+    const finalBuffer = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const buf of audioBuffers) {
+      finalBuffer.set(buf, offset);
+      offset += buf.length;
     }
 
-    // Multiple chunks — concatenate WAV data (strip 44-byte headers from subsequent chunks)
-    const firstHeader = wavBuffers[0].slice(0, 44);
-    let totalDataLength = 0;
-    const dataChunks: ArrayBuffer[] = [];
-
-    for (let i = 0; i < wavBuffers.length; i++) {
-      const dataStart = i === 0 ? 44 : 44;
-      const data = wavBuffers[i].slice(dataStart);
-      dataChunks.push(data);
-      totalDataLength += data.byteLength;
-    }
-
-    // Build final WAV: header + all PCM data
-    const finalBuffer = new ArrayBuffer(44 + totalDataLength);
-    const finalView = new DataView(finalBuffer);
-    const headerView = new DataView(firstHeader);
-
-    // Copy header from first chunk
-    for (let i = 0; i < 44; i++) {
-      finalView.setUint8(i, headerView.getUint8(i));
-    }
-
-    // Update RIFF chunk size (offset 4): total file size - 8
-    finalView.setUint32(4, 44 + totalDataLength - 8, true);
-    // Update data chunk size (offset 40): total PCM data length
-    finalView.setUint32(40, totalDataLength, true);
-
-    // Copy all PCM data
-    let offset = 44;
-    for (const chunk of dataChunks) {
-      const src = new Uint8Array(chunk);
-      new Uint8Array(finalBuffer, offset, src.length).set(src);
-      offset += src.length;
-    }
-
-    return new Blob([finalBuffer], { type: 'audio/wav' });
+    // Gemini returns PCM audio, wrap in a Blob
+    return new Blob([finalBuffer], { type: 'audio/pcm' });
   }
 }
 

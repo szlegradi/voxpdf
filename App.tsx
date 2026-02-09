@@ -2,14 +2,22 @@
 import React, { useState, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { localService } from './services/localService';
-import { VoiceName, ProcessingState, AudioResult } from './types';
+import { VoiceName, VisionModel, ProcessingState, AudioResult } from './types';
 
-const APP_VERSION = "v2.0.0";
+const APP_VERSION = "v4.0.0";
 
 const voiceDisplayNames: Record<VoiceName, string> = {
-  [VoiceName.Anna]: 'Anna (női)',
-  [VoiceName.Berta]: 'Berta (női)',
-  [VoiceName.Imre]: 'Imre (férfi)',
+  [VoiceName.Kore]: 'Kore (női)',
+  [VoiceName.Charon]: 'Charon (férfi)',
+  [VoiceName.Aoede]: 'Aoede (női)',
+  [VoiceName.Puck]: 'Puck (férfi)',
+  [VoiceName.Fenrir]: 'Fenrir (férfi)',
+};
+
+const modelDisplayNames: Record<VisionModel, string> = {
+  [VisionModel.Gemini2Flash]: 'Gemini 2.0 Flash',
+  [VisionModel.Gemini15Flash]: 'Gemini 1.5 Flash',
+  [VisionModel.Gemini15Pro]: 'Gemini 1.5 Pro',
 };
 
 const App: React.FC = () => {
@@ -19,7 +27,8 @@ const App: React.FC = () => {
   const [startPage, setStartPage] = useState<number>(1);
   const [endPage, setEndPage] = useState<number>(1);
   const [extractedText, setExtractedText] = useState<string>('');
-  const [selectedVoice, setSelectedVoice] = useState<VoiceName>(VoiceName.Anna);
+  const [selectedVoice, setSelectedVoice] = useState<VoiceName>(VoiceName.Kore);
+  const [selectedModel, setSelectedModel] = useState<VisionModel>(VisionModel.Gemini2Flash);
   const [processing, setProcessing] = useState<ProcessingState>({ status: 'idle', message: '' });
   const [audioResult, setAudioResult] = useState<AudioResult | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -86,7 +95,7 @@ const App: React.FC = () => {
           status: 'extracting',
           message: `Oldal elemzése (${p - startPage + 1} / ${totalToProcess})...`
         });
-        const pageText = await localService.extractSinglePage(pdfArrayBuffer, p, abortControllerRef.current.signal);
+        const pageText = await localService.extractSinglePage(pdfArrayBuffer, p, selectedModel, abortControllerRef.current.signal);
         fullText += (pageText + "\n\n");
       }
       setExtractedText(fullText.trim());
@@ -148,9 +157,9 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col items-center p-4 md:p-8">
       <header className="w-full max-w-4xl text-center mb-8 mt-4">
         <h1 className="text-4xl font-extrabold text-slate-800 mb-2 tracking-tight">
-          PDF <span className="text-blue-600">Szekvenciális</span> AI
+          PDF <span className="text-blue-600">Hangfelolvasó</span> AI
         </h1>
-        <p className="text-slate-600 text-lg">Hosszú dokumentumok oldalankénti, precíz feldolgozása.</p>
+        <p className="text-slate-600 text-lg">Hosszú dokumentumok oldalankénti, precíz feldolgozása Gemini-vel.</p>
       </header>
 
       <main className="w-full max-w-2xl bg-white rounded-3xl shadow-xl p-6 md:p-10 border border-slate-100">
@@ -198,9 +207,15 @@ const App: React.FC = () => {
             {!extractedText && (
               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                 <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider mb-4">Oldaltartomány kiválasztása ({pageCount} oldal)</h3>
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-2 gap-4 mb-4">
                   <input type="number" min="1" max={pageCount} value={startPage} onChange={(e) => setStartPage(Math.max(1, parseInt(e.target.value) || 1))} className="bg-white border p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Tól" />
                   <input type="number" min="1" max={pageCount} value={endPage} onChange={(e) => setEndPage(Math.max(1, parseInt(e.target.value) || 1))} className="bg-white border p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ig" />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">AI Modell</label>
+                  <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value as VisionModel)} className="w-full bg-white border p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
+                    {Object.values(VisionModel).map(m => <option key={m} value={m}>{modelDisplayNames[m]}</option>)}
+                  </select>
                 </div>
                 <button onClick={handleExtractRange} className="w-full bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg">Szekvenciális kinyerés indítása</button>
               </div>
@@ -218,14 +233,15 @@ const App: React.FC = () => {
 
                 {!audioResult && (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value as VoiceName)} className="bg-white border p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Hang kiválasztása (Gemini TTS)</label>
+                      <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value as VoiceName)} className="w-full bg-white border p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
                         {Object.values(VoiceName).map(v => <option key={v} value={v}>{voiceDisplayNames[v]}</option>)}
                       </select>
-                      <button onClick={generateAudio} className="bg-green-600 hover:bg-green-700 text-white font-bold p-3 rounded-xl transition-all shadow-lg flex items-center justify-center space-x-2">
-                        <span>Szöveg felolvasása</span>
-                      </button>
                     </div>
+                    <button onClick={generateAudio} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold p-3 rounded-xl transition-all shadow-lg flex items-center justify-center space-x-2">
+                      <span>Szöveg felolvasása</span>
+                    </button>
                     <button onClick={downloadAsWord} className="w-full bg-indigo-600 text-white font-bold p-3 rounded-xl hover:bg-indigo-700 transition-all shadow-md flex items-center justify-center space-x-2">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -257,7 +273,7 @@ const App: React.FC = () => {
 
       <footer className="mt-auto py-8 text-slate-400 text-sm text-center">
         <p className="font-medium">© 2025 PDF Hangfelolvasó • {APP_VERSION}</p>
-        <p className="mt-1">Helyi feldolgozás Ollama + Piper TTS segítségével.</p>
+        <p className="mt-1">Powered by Gemini API</p>
       </footer>
     </div>
   );

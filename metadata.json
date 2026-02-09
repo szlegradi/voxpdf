@@ -1,4 +1,21 @@
 {
   "name": "PDF Hangfelolvasó AI",
-  "description": "Egy intelligens alkalmazás, amely PDF dokumentumokat elemez helyi Ollama AI segítségével, és Piper TTS-sel alakítja azokat hanggá."
+  "version": "4.0.0",
+  "description": "Egy intelligens alkalmazás, amely PDF dokumentumokat elemez Gemini vision modellekkel, és Gemini TTS-sel alakítja azokat hanggá.",
+  "author": "Pauler Attila",
+  "license": "MIT",
+  "technologies": [
+    "React 19",
+    "TypeScript",
+    "Vite",
+    "Google Gemini API",
+    "pdf.js"
+  ],
+  "features": [
+    "PDF text extraction with Gemini vision models",
+    "Text-to-speech with Gemini TTS",
+    "5 multilingual voices",
+    "Word document export",
+    "Audio file download"
+  ]
 }

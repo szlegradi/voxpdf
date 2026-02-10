@@ -6,15 +6,37 @@ import { VoiceName, VisionModel } from "../types";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-const GEMINI_API_KEY = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || '';
+const LOCAL_STORAGE_KEY = 'voxpdf_gemini_api_key';
 
 export class LocalService {
   private geminiClient: GoogleGenAI | null = null;
 
   constructor() {
-    if (GEMINI_API_KEY) {
-      this.geminiClient = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    const savedKey = this.getSavedApiKey();
+    if (savedKey) {
+      this.geminiClient = new GoogleGenAI({ apiKey: savedKey });
     }
+  }
+
+  getSavedApiKey(): string {
+    try {
+      return localStorage.getItem(LOCAL_STORAGE_KEY) || '';
+    } catch {
+      return '';
+    }
+  }
+
+  setApiKey(apiKey: string): void {
+    try {
+      if (apiKey) {
+        localStorage.setItem(LOCAL_STORAGE_KEY, apiKey);
+      } else {
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+      }
+    } catch {
+      // localStorage unavailable
+    }
+    this.geminiClient = apiKey ? new GoogleGenAI({ apiKey }) : null;
   }
 
   /**
@@ -45,7 +67,7 @@ export class LocalService {
    */
   async extractSinglePage(pdfArrayBuffer: ArrayBuffer, pageNum: number, model: VisionModel, signal?: AbortSignal): Promise<string> {
     if (!this.geminiClient) {
-      throw new Error('Gemini API kulcs hiányzik! Állítsd be a GEMINI_API_KEY környezeti változót.');
+      throw new Error('Gemini API kulcs hiányzik! Add meg az API kulcsot a beállításokban.');
     }
 
     const base64Png = await this.renderPageToImage(pdfArrayBuffer, pageNum);
@@ -112,7 +134,7 @@ SZABÁLYOK:
    */
   async textToSpeech(text: string, voice: VoiceName, onProgress?: (current: number, total: number) => void): Promise<Blob> {
     if (!this.geminiClient) {
-      throw new Error('Gemini API kulcs hiányzik! Állítsd be a GEMINI_API_KEY környezeti változót.');
+      throw new Error('Gemini API kulcs hiányzik! Add meg az API kulcsot a beállításokban.');
     }
 
     const chunks = this.splitTextIntoChunks(text);

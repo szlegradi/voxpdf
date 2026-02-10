@@ -22,6 +22,9 @@ const modelDisplayNames: Record<VisionModel, string> = {
 };
 
 const App: React.FC = () => {
+  const [apiKey, setApiKey] = useState<string>(() => localService.getSavedApiKey());
+  const [apiKeyInput, setApiKeyInput] = useState<string>(() => localService.getSavedApiKey());
+  const [showApiKeyForm, setShowApiKeyForm] = useState<boolean>(false);
   const [pdfArrayBuffer, setPdfArrayBuffer] = useState<ArrayBuffer | null>(
     null
   );
@@ -42,6 +45,25 @@ const App: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSaveApiKey = () => {
+    const trimmed = apiKeyInput.trim();
+    if (!trimmed) return;
+    localService.setApiKey(trimmed);
+    setApiKey(trimmed);
+    setShowApiKeyForm(false);
+  };
+
+  const handleClearApiKey = () => {
+    localService.setApiKey('');
+    setApiKey('');
+    setApiKeyInput('');
+    setShowApiKeyForm(false);
+    setPdfArrayBuffer(null);
+    setExtractedText('');
+    setAudioResult(null);
+    setProcessing({ status: 'idle', message: '' });
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -225,7 +247,56 @@ const App: React.FC = () => {
       </header>
 
       <main className="w-full max-w-2xl bg-white rounded-3xl shadow-xl p-6 md:p-10 border border-slate-100">
-        {processing.status === "idle" && (
+        {(!apiKey || showApiKeyForm) && (
+          <div className="space-y-6">
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider mb-2">
+                Gemini API kulcs
+              </h3>
+              <p className="text-sm text-slate-500 mb-4">
+                Az alkalmazás használatához adj meg egy Gemini API kulcsot. A kulcs csak a böngésződben kerül tárolásra.
+              </p>
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey()}
+                placeholder="AIza..."
+                className="w-full bg-white border p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-4 font-mono text-sm"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveApiKey}
+                  disabled={!apiKeyInput.trim()}
+                  className="flex-1 bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Mentés
+                </button>
+                {apiKey && (
+                  <button
+                    onClick={() => { setShowApiKeyForm(false); setApiKeyInput(apiKey); }}
+                    className="px-6 bg-slate-200 text-slate-700 p-3 rounded-xl font-bold hover:bg-slate-300 transition-all"
+                  >
+                    Mégse
+                  </button>
+                )}
+              </div>
+              {apiKey && (
+                <button
+                  onClick={handleClearApiKey}
+                  className="w-full mt-3 text-red-500 text-sm font-semibold hover:underline"
+                >
+                  Kulcs törlése
+                </button>
+              )}
+              <p className="text-xs text-slate-400 mt-4">
+                Kulcsot a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Google AI Studio</a> oldalon igényelhetsz.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {apiKey && !showApiKeyForm && processing.status === "idle" && (
           <div
             className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
@@ -258,7 +329,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {(processing.status === "extracting" ||
+        {apiKey && !showApiKeyForm && (processing.status === "extracting" ||
           processing.status === "generating_audio") && (
           <div className="flex flex-col items-center py-12 text-center">
             <div className="relative w-16 h-16 mb-6 mx-auto">
@@ -282,7 +353,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {processing.status === "error" && (
+        {apiKey && !showApiKeyForm && processing.status === "error" && (
           <div className="bg-red-50 p-4 rounded-xl border border-red-100 mb-6">
             <p className="text-red-700 font-medium text-center">
               {processing.message}
@@ -309,7 +380,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {processing.status === "ready_to_speech" && pdfArrayBuffer && (
+        {apiKey && !showApiKeyForm && processing.status === "ready_to_speech" && pdfArrayBuffer && (
           <div className="space-y-6">
             {!extractedText && (
               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
@@ -484,6 +555,14 @@ const App: React.FC = () => {
       <footer className="mt-auto py-8 text-slate-400 text-sm text-center">
         <p className="font-medium">© 2025 VoxPDF • {APP_VERSION}</p>
         <p className="mt-1">Powered by Gemini API</p>
+        {apiKey && (
+          <button
+            onClick={() => setShowApiKeyForm(true)}
+            className="mt-2 text-slate-400 hover:text-slate-600 text-xs underline transition-colors"
+          >
+            API kulcs módosítása
+          </button>
+        )}
       </footer>
     </div>
   );

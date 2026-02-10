@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import { localService } from "./services/localService";
 import { VoiceName, VisionModel, ProcessingState, AudioResult } from "./types";
+import logoUrl from "/logo.png?url";
 
 const APP_VERSION = "v4.0.0";
 
@@ -239,7 +240,7 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col items-center p-4 md:p-8">
       <header className="w-full max-w-4xl text-center mb-8 mt-4">
         <div className="flex items-center justify-center mb-4">
-          <img src="/logo.png" alt="VoxPDF Logo" className="h-16 md:h-40" />
+          <img src={logoUrl} alt="VoxPDF Logo" className="h-16 md:h-40" />
         </div>
         <p className="text-slate-600 text-lg">
           Hosszú dokumentumok oldalankénti, precíz feldolgozása Gemini-vel.

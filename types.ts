@@ -7,6 +7,7 @@ export enum VoiceName {
 }
 
 export enum VisionModel {
+  Gemini31ProPreview = "gemini-3.1-pro-preview",
   Gemini3ProPreview = "gemini-3-pro-preview",
   Gemini3FlashPreview = "gemini-3-flash-preview",
   Gemini25Pro = "gemini-2.5-pro",
